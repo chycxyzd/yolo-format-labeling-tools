@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>标注审核工具</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #161b27;
+    --panel2: #1e2535;
+    --border: #2a3347;
+    --accent: #4ade80;
+    --accent2: #22d3ee;
+    --warn: #f59e0b;
+    --danger: #f87171;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --text-muted: #94a3b8;
+    --reviewed-bg: #0f2820;
+    --reviewed-border: #166534;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ─── Header ─── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .header-stats { font-size: 12px; color: var(--text-dim); margin-left: auto; }
+  .header-stats span { color: var(--text-muted); margin-left: 14px; }
+  .header-stats b { color: var(--accent2); }
+
+  /* ─── Layout ─── */
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ─── Left Panel: Image List ─── */
+  .image-list-panel {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .list-toolbar {
+    display: flex;
+    gap: 6px;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .list-toolbar input {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    border-radius: 4px;
+    outline: none;
+  }
+  .list-toolbar input:focus { border-color: var(--accent2); }
+  .filter-btns { display: flex; gap: 4px; width: 100%; }
+  .filter-btn {
+    flex: 1;
+    font-size: 10px;
+    padding: 4px 0;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s;
+    text-align: center;
+  }
+  .filter-btn.active { background: var(--accent2); color: #000; border-color: var(--accent2); font-weight: 600; }
+  .image-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .image-list::-webkit-scrollbar { width: 4px; }
+  .image-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .img-item {
+    padding: 7px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all .12s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .img-item:hover { background: var(--panel2); border-color: var(--border); }
+  .img-item.active { background: #1a2d4a; border-color: var(--accent2); }
+  .img-item.reviewed { background: var(--reviewed-bg); border-color: var(--reviewed-border); }
+  .img-item.reviewed.active { background: #0a3320; border-color: var(--accent); }
+  .img-item-name { font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .img-item-meta { font-size: 10px; color: var(--text-dim); display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+  .badge {
+    font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .badge-train { background: #1e3a5f; color: var(--accent2); }
+  .badge-val { background: #3a1e1e; color: #fca5a5; }
+  .badge-ok { background: #14532d; color: var(--accent); }
+
+  /* ─── Center: Canvas ─── */
+  .canvas-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .canvas-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .canvas-toolbar .img-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent2);
+    margin-right: auto;
+  }
+  .btn {
+    font-size: 11px;
+    padding: 5px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent2); color: var(--accent2); }
+  .btn.btn-success { background: #14532d; border-color: var(--accent); color: var(--accent); }
+  .btn.btn-success:hover { background: var(--accent); color: #000; }
+  .btn.btn-danger { background: #3b0f0f; border-color: var(--danger); color: var(--danger); }
+  .btn.btn-danger:hover { background: var(--danger); color: #000; }
+  .btn.btn-warn { background: #3b2500; border-color: var(--warn); color: var(--warn); }
+  .btn.active-tool { background: var(--accent2); color: #000; border-color: var(--accent2); font-weight: 700; }
+  .canvas-wrap {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #080b12;
+    position: relative;
+  }
+  .canvas-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+  .canvas-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  #mainCanvas {
+    image-rendering: pixelated;
+    cursor: crosshair;
+    display: block;
+  }
+  #mainCanvas.cursor-pointer { cursor: pointer; }
+  #mainCanvas.cursor-move { cursor: move; }
+  .canvas-hint {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: var(--text-dim);
+    background: rgba(0,0,0,.6);
+    padding: 4px 10px;
+    border-radius: 20px;
+    pointer-events: none;
+  }
+  .zoom-controls {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
+    display: flex;
+    gap: 4px;
+  }
+  .zoom-btn {
+    width: 28px; height: 28px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .12s;
+  }
+  .zoom-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ─── Right Panel: Box List ─── */
+  .box-panel {
+    width: 260px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+  }
+  .box-panel-title {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .box-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .box-list::-webkit-scrollbar { width: 4px; }
+  .box-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .box-item {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 9px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all .12s;
+    font-size: 11px;
+  }
+  .box-item:hover, .box-item.active { border-color: var(--accent2); background: #1a2d4a; }
+  .box-color { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .box-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .box-del {
+    width: 18px; height: 18px;
+    background: none; border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px;
+    transition: all .12s;
+    padding: 0; font-family: inherit;
+    flex-shrink: 0;
+  }
+  .box-del:hover { background: var(--danger); color: #fff; }
+
+  .class-picker {
+    padding: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .class-picker-title {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .class-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+  }
+  .class-btn {
+    font-size: 10px;
+    padding: 4px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: all .1s;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .class-btn:hover { border-color: var(--accent2); color: var(--text); }
+  .class-btn.active { color: #000; font-weight: 700; }
+  .class-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ─── Empty state ─── */
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: var(--text-dim); gap: 10px; font-size: 13px;
+  }
+  .empty-icon { font-size: 40px; opacity: .3; }
+
+  /* ─── Toast ─── */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text); font-size: 12px; padding: 8px 18px;
+    border-radius: 20px; opacity: 0; transition: opacity .25s;
+    pointer-events: none; z-index: 999; font-family: inherit;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+  #toast.toast-ok { border-color: var(--accent); color: var(--accent); }
+  #toast.toast-err { border-color: var(--danger); color: var(--danger); }
+
+  /* ─── Spinner ─── */
+  .spinner {
+    width: 28px; height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌿 标注审核工具</h1>
+  <div class="header-stats">
+    图片总数: <b id="statTotal">—</b>
+    <span>已审核: <b id="statReviewed">—</b></span>
+    <span>标注框: <b id="statBoxes">—</b></span>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ─── 左侧：图片列表 ─── -->
+  <div class="image-list-panel">
+    <div class="list-toolbar">
+      <input type="text" id="searchInput" placeholder="搜索文件名…" oninput="filterList()">
+      <div class="filter-btns">
+        <button class="filter-btn active" onclick="setFilter('all', this)">全部</button>
+        <button class="filter-btn" onclick="setFilter('train', this)">Train</button>
+        <button class="filter-btn" onclick="setFilter('val', this)">Val</button>
+        <button class="filter-btn" onclick="setFilter('unreviewed', this)">未审核</button>
+      </div>
+    </div>
+    <div class="image-list" id="imageList">
+      <div class="empty-state"><div class="spinner"></div><span>加载中…</span></div>
+    </div>
+  </div>
+
+  <!-- ─── 中间：画布 ─── -->
+  <div class="canvas-panel">
+    <div class="canvas-toolbar">
+      <span class="img-title" id="canvasTitle">请选择图片</span>
+      <button class="btn" id="btnDraw" onclick="setTool('draw')" title="绘制新标注框 [D]">✏️ 绘制</button>
+      <button class="btn" id="btnSelect" onclick="setTool('select')" title="选择/移动框 [S]">↖️ 选择</button>
+      <button class="btn btn-warn" onclick="saveLabels()" title="保存标注 [Ctrl+S]">💾 保存</button>
+      <button class="btn btn-success" id="btnReview" onclick="toggleReview()" title="标记为已审核 [R]">✅ 审核通过</button>
+      <button class="btn btn-danger" onclick="deleteImage()" title="删除图片和标注">🗑️ 删除</button>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="empty-state">
+        <div class="empty-icon">🖼️</div>
+        <span>从左侧选择图片</span>
+      </div>
+      <div class="canvas-hint" id="canvasHint" style="display:none">拖拽绘制标注框</div>
+      <div class="zoom-controls">
+        <div class="zoom-btn" onclick="zoom(1.2)" title="放大">+</div>
+        <div class="zoom-btn" onclick="zoom(1/1.2)" title="缩小">−</div>
+        <div class="zoom-btn" onclick="fitCanvas()" title="适应窗口">⊡</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 右侧：标注框列表 ─── -->
+  <div class="box-panel">
+    <div class="box-panel-title">
+      <span>标注框</span>
+      <span id="boxCount" style="color:var(--accent2)">0</span>
+    </div>
+    <div class="box-list" id="boxList"></div>
+    <div class="class-picker">
+      <div class="class-picker-title">选择类别（绘制前点击）</div>
+      <div class="class-grid" id="classGrid"></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── 配置 ─────────────────────────────────────────────────────────────────
+const LABEL_ORDER = {{ label_order | safe }};
+
+const COLORS = [
+  "#4ade80","#22d3ee","#f59e0b","#f87171","#a78bfa",
+  "#fb923c","#34d399","#60a5fa","#e879f9","#fbbf24","#86efac"
+];
+
+function labelColor(cls) { return COLORS[cls % COLORS.length]; }
+
+// ─── State ────────────────────────────────────────────────────────────────
+let allImages = [];
+let filteredImages = [];
+let currentFilter = 'all';
+let currentImage = null;      // { stem, split, is_reviewed }
+let boxes = [];               // [{cls,cx,cy,w,h}, ...]
+let selectedBox = -1;
+let currentCls = 0;
+let tool = 'draw';
+
+let scale = 1;
+let imgW = 0, imgH = 0;
+let imgElement = null;
+
+// Drawing state
+let drawing = false;
+let drawStart = null;
+
+// Drag state
+let dragging = false;
+let dragBoxIdx = -1;
+let dragOffset = { x: 0, y: 0 };
+let resizing = false;
+let resizeHandle = null;
+
+const HANDLE_SIZE = 7;
+const MIN_BOX_PX = 8;
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────
+let canvas, ctx;
+
+// ─── Init ─────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  buildClassGrid();
+  loadImageList();
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'd' || e.key === 'D') setTool('draw');
+    if (e.key === 's' || e.key === 'S') setTool('select');
+    if (e.key === 'r' || e.key === 'R') toggleReview();
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveLabels(); }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (selectedBox >= 0) { boxes.splice(selectedBox, 1); selectedBox = -1; render(); updateBoxList(); }
+    }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      let idx = filteredImages.findIndex(i => i.stem === currentImage?.stem && i.split === currentImage?.split);
+      if (idx < filteredImages.length - 1) loadImage(filteredImages[idx + 1]);
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      let idx = filteredImages.findIndex(i => i.stem === currentImage?.stem && i.split === currentImage?.split);
+      if (idx > 0) loadImage(filteredImages[idx - 1]);
+    }
+    // Number keys to switch class
+    const n = parseInt(e.key);
+    if (!isNaN(n) && n >= 0 && n <= 9 && n < LABEL_ORDER.length) {
+      currentCls = n;
+      highlightClassBtn();
+    }
+  });
+});
+
+// ─── Class Grid ───────────────────────────────────────────────────────────
+function buildClassGrid() {
+  const grid = document.getElementById('classGrid');
+  grid.innerHTML = '';
+  LABEL_ORDER.forEach((name, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'class-btn' + (i === 0 ? ' active' : '');
+    btn.style.background = i === 0 ? labelColor(0) : '';
+    btn.innerHTML = `<span class="class-dot" style="background:${labelColor(i)}"></span>${i}: ${name}`;
+    btn.onclick = () => { currentCls = i; highlightClassBtn(); };
+    btn.title = name;
+    grid.appendChild(btn);
+  });
+}
+
+function highlightClassBtn() {
+  document.querySelectorAll('.class-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === currentCls);
+    btn.style.background = i === currentCls ? labelColor(i) : '';
+    btn.style.borderColor = i === currentCls ? labelColor(i) : '';
+  });
+}
+
+// ─── Image List ───────────────────────────────────────────────────────────
+async function loadImageList() {
+  const res = await fetch('/api/images');
+  allImages = await res.json();
+  updateStats();
+  filterList();
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent = allImages.length;
+  document.getElementById('statReviewed').textContent = allImages.filter(i => i.is_reviewed).length;
+  document.getElementById('statBoxes').textContent = allImages.reduce((s, i) => s + (i.box_count || 0), 0);
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterList();
+}
+
+function filterList() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  filteredImages = allImages.filter(img => {
+    const matchQ = !q || img.stem.toLowerCase().includes(q);
+    const matchF = currentFilter === 'all' ? true
+      : currentFilter === 'unreviewed' ? !img.is_reviewed
+      : img.split === currentFilter;
+    return matchQ && matchF;
+  });
+  renderList();
+}
+
+function renderList() {
+  const list = document.getElementById('imageList');
+  if (!filteredImages.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><span>无匹配图片</span></div>';
+    return;
+  }
+  list.innerHTML = '';
+  filteredImages.forEach(img => {
+    const active = currentImage?.stem === img.stem && currentImage?.split === img.split;
+    const div = document.createElement('div');
+    div.className = 'img-item' + (active ? ' active' : '') + (img.is_reviewed ? ' reviewed' : '');
+    div.innerHTML = `
+      <div class="img-item-name" title="${img.stem}">${img.stem}</div>
+      <div class="img-item-meta">
+        <span class="badge badge-${img.split}">${img.split}</span>
+        ${img.box_count ? `<span>${img.box_count}🔲</span>` : '<span style="color:#ef4444">0</span>'}
+        ${img.is_reviewed ? '<span class="badge badge-ok">✓</span>' : ''}
+      </div>`;
+    div.onclick = () => loadImage(img);
+    list.appendChild(div);
+  });
+}
+
+// ─── Load Image ───────────────────────────────────────────────────────────
+async function loadImage(imgMeta) {
+  currentImage = imgMeta;
+  renderList();  // highlight
+
+  // Load boxes
+  const res = await fetch(`/api/boxes/${imgMeta.split}/${imgMeta.stem}`);
+  boxes = await res.json();
+  selectedBox = -1;
+
+  // Load image element
+  imgElement = new Image();
+  imgElement.src = `/api/image/${imgMeta.split}/${imgMeta.stem}?t=${Date.now()}`;
+  imgElement.onload = () => {
+    imgW = imgElement.naturalWidth;
+    imgH = imgElement.naturalHeight;
+    initCanvas();
+    fitCanvas();
+    render();
+    updateBoxList();
+  };
+
+  // Update toolbar
+  document.getElementById('canvasTitle').textContent = `${imgMeta.stem}  [${imgMeta.split}]`;
+  document.getElementById('canvasHint').style.display = 'block';
+  const btnR = document.getElementById('btnReview');
+  btnR.textContent = imgMeta.is_reviewed ? '❌ 取消审核' : '✅ 审核通过';
+  btnR.className = 'btn ' + (imgMeta.is_reviewed ? 'btn-warn' : 'btn-success');
+}
+
+// ─── Canvas init ──────────────────────────────────────────────────────────
+function initCanvas() {
+  const wrap = document.getElementById('canvasWrap');
+  // Remove old canvas
+  if (canvas) { canvas.remove(); }
+  const emptyStates = wrap.querySelectorAll('.empty-state');
+  emptyStates.forEach(e => e.style.display = 'none');
+
+  canvas = document.createElement('canvas');
+  canvas.id = 'mainCanvas';
+  canvas.width = imgW;
+  canvas.height = imgH;
+  wrap.insertBefore(canvas, wrap.firstChild);
+  ctx = canvas.getContext('2d');
+  attachCanvasEvents();
+}
+
+function fitCanvas() {
+  if (!canvas) return;
+  const wrap = document.getElementById('canvasWrap');
+  const maxW = wrap.clientWidth - 40;
+  const maxH = wrap.clientHeight - 40;
+  scale = Math.min(maxW / imgW, maxH / imgH, 1);
+  applyScale();
+}
+
+function zoom(factor) {
+  scale = Math.max(0.1, Math.min(scale * factor, 8));
+  applyScale();
+}
+
+function applyScale() {
+  if (!canvas) return;
+  canvas.style.width = (imgW * scale) + 'px';
+  canvas.style.height = (imgH * scale) + 'px';
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────
+function render() {
+  if (!ctx) return;
+  ctx.clearRect(0, 0, imgW, imgH);
+  if (imgElement) ctx.drawImage(imgElement, 0, 0, imgW, imgH);
+
+  boxes.forEach((b, i) => {
+    const x = (b.cx - b.w / 2) * imgW;
+    const y = (b.cy - b.h / 2) * imgH;
+    const w = b.w * imgW;
+    const h = b.h * imgH;
+    const col = labelColor(b.cls);
+    const isSelected = i === selectedBox;
+
+    ctx.save();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = isSelected ? 2.5 : 1.5;
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = col + (isSelected ? '30' : '18');
+    ctx.fillRect(x, y, w, h);
+
+    // Label tag
+    const lname = LABEL_ORDER[b.cls] || `cls${b.cls}`;
+    const tag = `${b.cls}: ${lname}`;
+    ctx.font = '11px monospace';
+    const tw = ctx.measureText(tag).width;
+    const th = 14;
+    const tx = x, ty = y > th + 2 ? y - th - 2 : y + 1;
+    ctx.fillStyle = col;
+    ctx.fillRect(tx, ty, tw + 8, th);
+    ctx.fillStyle = '#000';
+    ctx.fillText(tag, tx + 4, ty + th - 2);
+
+    // Resize handles on selected
+    if (isSelected) {
+      const handles = getHandles(b);
+      handles.forEach(h => {
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1;
+        ctx.fillRect(h.x - HANDLE_SIZE/2, h.y - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+        ctx.strokeRect(h.x - HANDLE_SIZE/2, h.y - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+      });
+    }
+    ctx.restore();
+  });
+}
+
+function getHandles(b) {
+  const x1 = (b.cx - b.w/2) * imgW, y1 = (b.cy - b.h/2) * imgH;
+  const x2 = (b.cx + b.w/2) * imgW, y2 = (b.cy + b.h/2) * imgH;
+  return [
+    { x: x1, y: y1, name: 'tl' }, { x: (x1+x2)/2, y: y1, name: 'tm' },
+    { x: x2, y: y1, name: 'tr' }, { x: x2, y: (y1+y2)/2, name: 'mr' },
+    { x: x2, y: y2, name: 'br' }, { x: (x1+x2)/2, y: y2, name: 'bm' },
+    { x: x1, y: y2, name: 'bl' }, { x: x1, y: (y1+y2)/2, name: 'ml' },
+  ];
+}
+
+// ─── Canvas events ────────────────────────────────────────────────────────
+function attachCanvasEvents() {
+  canvas.addEventListener('mousedown', onMouseDown);
+  canvas.addEventListener('mousemove', onMouseMove);
+  canvas.addEventListener('mouseup', onMouseUp);
+  canvas.addEventListener('contextmenu', e => { e.preventDefault(); cancelDraw(); });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.1 : 1/1.1); }, { passive: false });
+}
+
+function canvasXY(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) / scale,
+    y: (e.clientY - rect.top) / scale,
+  };
+}
+
+let drawRect = null; // {x1,y1,x2,y2} in img pixels
+
+function onMouseDown(e) {
+  if (!imgElement) return;
+  const { x, y } = canvasXY(e);
+
+  if (tool === 'select') {
+    // Check resize handles first
+    if (selectedBox >= 0) {
+      const handles = getHandles(boxes[selectedBox]);
+      for (const h of handles) {
+        if (Math.abs(x - h.x) < HANDLE_SIZE && Math.abs(y - h.y) < HANDLE_SIZE) {
+          resizing = true;
+          resizeHandle = h.name;
+          return;
+        }
+      }
+    }
+    // Check box click
+    let found = -1;
+    for (let i = boxes.length - 1; i >= 0; i--) {
+      const b = boxes[i];
+      const bx = (b.cx - b.w/2) * imgW, by = (b.cy - b.h/2) * imgH;
+      const bw = b.w * imgW, bh = b.h * imgH;
+      if (x >= bx && x <= bx+bw && y >= by && y <= by+bh) { found = i; break; }
+    }
+    if (found >= 0) {
+      selectedBox = found;
+      dragging = true;
+      const b = boxes[found];
+      dragOffset = { x: x - b.cx * imgW, y: y - b.cy * imgH };
+    } else {
+      selectedBox = -1;
+    }
+    render(); updateBoxList();
+    return;
+  }
+
+  if (tool === 'draw') {
+    drawing = true;
+    drawRect = { x1: x, y1: y, x2: x, y2: y };
+  }
+}
+
+function onMouseMove(e) {
+  if (!imgElement) return;
+  const { x, y } = canvasXY(e);
+
+  if (resizing && selectedBox >= 0) {
+    const b = boxes[selectedBox];
+    let x1 = (b.cx - b.w/2) * imgW, y1 = (b.cy - b.h/2) * imgH;
+    let x2 = (b.cx + b.w/2) * imgW, y2 = (b.cy + b.h/2) * imgH;
+    const h = resizeHandle;
+    if (h.includes('l')) x1 = Math.min(x, x2 - MIN_BOX_PX);
+    if (h.includes('r')) x2 = Math.max(x, x1 + MIN_BOX_PX);
+    if (h.includes('t')) y1 = Math.min(y, y2 - MIN_BOX_PX);
+    if (h.includes('b')) y2 = Math.max(y, y1 + MIN_BOX_PX);
+    if (h === 'tm' || h === 'bm') { /* only y */ }
+    if (h === 'ml' || h === 'mr') { /* only x */ }
+    boxes[selectedBox] = toYolo(x1, y1, x2, y2, b.cls);
+    render();
+    return;
+  }
+
+  if (dragging && selectedBox >= 0) {
+    const b = boxes[selectedBox];
+    let cx = (x - dragOffset.x) / imgW;
+    let cy = (y - dragOffset.y) / imgH;
+    cx = Math.max(b.w/2, Math.min(1 - b.w/2, cx));
+    cy = Math.max(b.h/2, Math.min(1 - b.h/2, cy));
+    boxes[selectedBox] = { ...b, cx, cy };
+    render();
+    return;
+  }
+
+  if (drawing && drawRect) {
+    drawRect.x2 = Math.max(0, Math.min(imgW, x));
+    drawRect.y2 = Math.max(0, Math.min(imgH, y));
+    render();
+    // Draw temp rect
+    const x1 = Math.min(drawRect.x1, drawRect.x2);
+    const y1 = Math.min(drawRect.y1, drawRect.y2);
+    const w  = Math.abs(drawRect.x2 - drawRect.x1);
+    const h  = Math.abs(drawRect.y2 - drawRect.y1);
+    ctx.save();
+    ctx.strokeStyle = labelColor(currentCls);
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 3]);
+    ctx.strokeRect(x1, y1, w, h);
+    ctx.fillStyle = labelColor(currentCls) + '25';
+    ctx.fillRect(x1, y1, w, h);
+    ctx.restore();
+  }
+}
+
+function onMouseUp(e) {
+  if (dragging) { dragging = false; updateBoxList(); }
+  if (resizing) { resizing = false; resizeHandle = null; updateBoxList(); }
+  if (drawing && drawRect) {
+    drawing = false;
+    const x1 = Math.min(drawRect.x1, drawRect.x2);
+    const y1 = Math.min(drawRect.y1, drawRect.y2);
+    const x2 = Math.max(drawRect.x1, drawRect.x2);
+    const y2 = Math.max(drawRect.y1, drawRect.y2);
+    if (x2 - x1 > MIN_BOX_PX && y2 - y1 > MIN_BOX_PX) {
+      boxes.push(toYolo(x1, y1, x2, y2, currentCls));
+      selectedBox = boxes.length - 1;
+      updateBoxList();
+    }
+    drawRect = null;
+    render();
+  }
+}
+
+function cancelDraw() {
+  drawing = false; drawRect = null; render();
+}
+
+function toYolo(x1, y1, x2, y2, cls) {
+  return {
+    cls,
+    cx: ((x1+x2)/2) / imgW,
+    cy: ((y1+y2)/2) / imgH,
+    w: (x2-x1) / imgW,
+    h: (y2-y1) / imgH,
+  };
+}
+
+// ─── Tool ─────────────────────────────────────────────────────────────────
+function setTool(t) {
+  tool = t;
+  document.getElementById('btnDraw').classList.toggle('active-tool', t === 'draw');
+  document.getElementById('btnSelect').classList.toggle('active-tool', t === 'select');
+  if (canvas) canvas.className = t === 'select' ? 'cursor-pointer' : '';
+  document.getElementById('canvasHint').textContent =
+    t === 'draw' ? '拖拽绘制标注框 / 右键取消' : '点击选择框 / 拖拽移动 / Delete删除';
+}
+
+// ─── Box List (right panel) ───────────────────────────────────────────────
+function updateBoxList() {
+  const list = document.getElementById('boxList');
+  document.getElementById('boxCount').textContent = boxes.length;
+  if (!boxes.length) { list.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:8px">暂无标注框</div>'; return; }
+  list.innerHTML = '';
+  boxes.forEach((b, i) => {
+    const div = document.createElement('div');
+    div.className = 'box-item' + (i === selectedBox ? ' active' : '');
+    const lname = LABEL_ORDER[b.cls] || `cls${b.cls}`;
+    div.innerHTML = `
+      <span class="box-color" style="background:${labelColor(b.cls)}"></span>
+      <span class="box-label">${b.cls}: ${lname}</span>
+      <select style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;font-family:inherit;padding:1px;border-radius:3px;flex-shrink:0" onchange="changeBoxClass(${i}, this.value)" onclick="e=>e.stopPropagation()">
+        ${LABEL_ORDER.map((n,j)=>`<option value="${j}" ${j===b.cls?'selected':''}>${j}:${n}</option>`).join('')}
+      </select>
+      <button class="box-del" onclick="deleteBox(${i})" title="删除">×</button>`;
+    div.onclick = (e) => {
+      if (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
+      selectedBox = i; render(); updateBoxList();
+    };
+    list.appendChild(div);
+  });
+}
+
+function deleteBox(i) {
+  boxes.splice(i, 1);
+  if (selectedBox >= boxes.length) selectedBox = -1;
+  render(); updateBoxList();
+}
+
+function changeBoxClass(i, cls) {
+  boxes[i].cls = parseInt(cls);
+  render(); updateBoxList();
+}
+
+// ─── API Actions ──────────────────────────────────────────────────────────
+async function saveLabels() {
+  if (!currentImage) return;
+  const res = await fetch('/api/save_labels', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stem: currentImage.stem, split: currentImage.split, boxes }),
+  });
+  const d = await res.json();
+  if (d.ok) {
+    toast(`✅ 已保存 ${d.box_count} 个标注框`, 'ok');
+    const img = allImages.find(i => i.stem === currentImage.stem && i.split === currentImage.split);
+    if (img) img.box_count = d.box_count;
+    updateStats();
+    renderList();
+  } else toast('保存失败', 'err');
+}
+
+async function toggleReview() {
+  if (!currentImage) return;
+  const newVal = !currentImage.is_reviewed;
+  const res = await fetch('/api/reviewed', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stem: currentImage.stem, split: currentImage.split, reviewed: newVal }),
+  });
+  const d = await res.json();
+  if (d.ok) {
+    currentImage.is_reviewed = newVal;
+    const img = allImages.find(i => i.stem === currentImage.stem && i.split === currentImage.split);
+    if (img) img.is_reviewed = newVal;
+    const btnR = document.getElementById('btnReview');
+    btnR.textContent = newVal ? '❌ 取消审核' : '✅ 审核通过';
+    btnR.className = 'btn ' + (newVal ? 'btn-warn' : 'btn-success');
+    toast(newVal ? '✅ 已标记为审核通过' : '取消审核标记', newVal ? 'ok' : '');
+    updateStats(); renderList();
+    // Auto advance to next unreviewed
+    if (newVal) {
+      const idx = filteredImages.findIndex(i => i.stem === currentImage.stem && i.split === currentImage.split);
+      const next = filteredImages.slice(idx + 1).find(i => !i.is_reviewed);
+      if (next) setTimeout(() => loadImage(next), 300);
+    }
+  }
+}
+
+async function deleteImage() {
+  if (!currentImage) return;
+  if (!confirm(`确认删除 ${currentImage.stem}？此操作不可撤销。`)) return;
+  const res = await fetch('/api/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stem: currentImage.stem, split: currentImage.split }),
+  });
+  const d = await res.json();
+  if (d.ok) {
+    toast('🗑️ 已删除', 'ok');
+    allImages = allImages.filter(i => !(i.stem === currentImage.stem && i.split === currentImage.split));
+    currentImage = null;
+    boxes = [];
+    if (canvas) { canvas.remove(); canvas = null; ctx = null; }
+    const wrap = document.getElementById('canvasWrap');
+    wrap.querySelectorAll('.empty-state').forEach(e => e.style.display = '');
+    document.getElementById('canvasTitle').textContent = '请选择图片';
+    document.getElementById('canvasHint').style.display = 'none';
+    updateStats(); filterList(); updateBoxList();
+  }
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (type === 'ok' ? ' toast-ok' : type === 'err' ? ' toast-err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 2000);
+}
+
+// Init tool state
+setTool('draw');
+</script>
+</body>
+</html>
