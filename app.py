@@ -9,14 +9,16 @@ from flask import Flask, jsonify, request, send_file, render_template
 
 app = Flask(__name__)
 
-DATASET_DIR = r"C:\Users\chenh\Desktop\lizhi_test"
+DATASET_DIR = r"your_dataset_path"
 SPLITS = ["train", "val"]
 REVIEWED_FILE = Path(DATASET_DIR) / "reviewed.json"
 
 LABEL_ORDER = [
-    "lychee stink bug",           # 0
-    "lychee stink bug nymph",     # 1
-    "lychee stink bug egg",       # 2
+    "class 0",    
+    "class 1",    
+    "class 2",
+    ".......",
+    "class n",
 ]
 
 
